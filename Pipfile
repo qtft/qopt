@@ -5,8 +5,13 @@ verify_ssl = true
 
 [dev-packages]
 twine = "*"
+matplotlib = "*"
+jupyter = "*"
 
 [packages]
+numpy = "*"
+scipy = "*"
+scikit-learn = "*"
 
 [requires]
 python_version = "3.7"
