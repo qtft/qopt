@@ -4,13 +4,9 @@ An implementation of Gaussian Kernel Density Estimator.
 It is a building block for other algorithms
 such as Horn–Gottlieb's quantum-inspired clustering algorithm.
 """
-from typing import Optional, TypeVar
-
 import numpy as np
 
 from qopt.datatypes import array_like
-
-T = TypeVar('T', bound='GaussianKDE')
 
 
 ##############
@@ -27,21 +23,48 @@ class GaussianKDE:
     where N and D are the number of data points and dimensions, respectively.
     """
     data: np.ndarray
-    sigma: Optional[float]
+    __slots__ = ['data']
 
-    __slots__ = ['data', 'sigma']
+    class ParametrizedGaussianKDE:
+        """
+        A parametrized version of GaussianKDE class.
+        Each instance of this class will reference to
+        an instance of the original GaussianKDE class
+        but some parameters will be pre-defined, such as Gaussian sigma.
+        """
+        parent: 'GaussianKDE'
+        sigma: float
+        __slots__ = ['parent', 'sigma']
 
-    def __init__(self, data: array_like, *, sigma: float = 1, _copy: bool = True):
-        # Convert dataset into numpy array, freeze the content,
-        # and verify that it is two-dimensional
-        if _copy:
-            self.data = np.array(data)
-            self.data.setflags(write=False)
-            assert len(self.data.shape) == 2
-        else:
-            self.data = data
-        # Keep the Gaussian sigma value
-        self.sigma = sigma
+        def __init__(self, parent: 'GaussianKDE', *, sigma: float = 1):
+            self.parent = parent
+            self.sigma = sigma
+
+        def wave(self, x: np.ndarray):
+            """
+            Wave function (Psi) based on the given point x.
+            """
+            return self.parent.wave(x, sigma=self.sigma)
+
+        def potential(self, x: np.ndarray, sigma: float = 1.0) -> float:
+            """
+            Potential energy (V) of a given point x.
+            """
+            return self.parent.potential(x, sigma=self.sigma)
+
+    def __init__(self, data: array_like):
+        self.data = np.array(data)
+        self.data.setflags(write=False)
+
+    def parametrize(self, **options):
+        """
+        Extends the instance of GaussianKDE class with
+        the specified arguments (such as Gaussian sigma value).
+
+        Keyword Args:
+            sigma: Floating point value representing Gaussian radius of KDE
+        """
+        return GaussianKDE.ParametrizedGaussianKDE(self, **options)
 
     @property
     def n_points(self) -> int:
@@ -57,27 +80,22 @@ class GaussianKDE:
         """
         return self.data.shape[1]
 
-    def replace(self: T, *, sigma: float) -> T:
+    def wave(self, x: np.ndarray, *, sigma: float = 1.0):
         """
-        Creates a new KDE estimator using a new Gaussian sigma value
-        but retain the original dataset.
-        """
-        return GaussianKDE(self.data, sigma=sigma, _copy=False)
-
-    def wave(self, x: np.ndarray):
-        """
-        Wave function (Psi) based on the given point x.
+        Wave function (Psi) based on the given point x
+        assuming the given Gaussian sigma value.
         """
         x = self._sanitize_x(x)
-        return np.sum(np.exp(-self.dist(x) / (2 * self.sigma ** 2)))
+        return np.sum(np.exp(-self.dist(x) / (2 * sigma ** 2)))
 
-    def potential(self, x: np.ndarray) -> float:
+    def potential(self, x: np.ndarray, sigma: float = 1.0) -> float:
         """
-        Potential energy (V) of a given point x.
+        Potential energy (V) of a given point x
+        assuming the given Gaussian sigma value.
         """
         x = self._sanitize_x(x)
         dist = self.dist(x)
-        return np.sum(dist * np.exp(-dist / (2 * self.sigma ** 2))) / self.wave(x)
+        return np.sum(dist * np.exp(-dist / (2 * sigma ** 2))) / self.wave(x)
 
     def dist(self, x: np.ndarray) -> np.ndarray:
         """
